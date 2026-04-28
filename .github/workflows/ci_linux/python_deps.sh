@@ -10,7 +10,11 @@ if [ $version != '3.12' ]; then
     pip install spglib
 fi
 
-#cppe
-if [ "$RUNNER_OS" == "Linux" ] && [ $version != "3.12" ]; then
-    pip install cppe
+if [ $version != '3.8' ]; then
+    pip install pytblis
 fi
+
+#cppe
+#if [ "$RUNNER_OS" == "Linux" ] && [ $version != "3.12" ]; then
+#    pip install cppe
+#fi
