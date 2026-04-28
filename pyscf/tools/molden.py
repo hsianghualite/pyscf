@@ -32,27 +32,14 @@ IGNORE_H = getattr(__config__, 'molden_ignore_h', True)
 
 
 def _norm_fac_of_prim_gau(itype, alpha):
-    """计算单个原始高斯函数的归一化因子。
-    对应 read_mkl.f90 中的 norm_fac_of_prim_gau。
-    itype: 角动量量子数 (0=S, 1=P, 2=D, ...)
-    alpha: 原始高斯指数
-    """
-    PI = numpy.pi
-    if itype == 0:
-        return (2.0 * alpha / PI) ** 0.75
-    elif 1 <= itype <= 6:
-        nf = (2.0 * PI) ** (0.5 * itype)
-        nf *= (2.0 * alpha / PI) ** (0.25 * (2 * itype + 3))
-        if itype == 6:  # I shell: 10395 = 3*5*7*9*11
-            nf /= numpy.sqrt(10395.0)
-        return nf
-    else:
+    if itype < 0 or itype > 7:
         raise ValueError('_norm_fac_of_prim_gau: unsupported itype=%d' % itype)
-
+    PI = numpy.pi
+    nf = (2.0*alpha/PI)**0.75 * ( (4.0*alpha)**itype * (PI) ** 0.5 / (2.0**itype * gamma(itype+0.5)) )**0.5
+    return nf
 
 def _norm_fac_of_contract_gau(itype, exps, coeffs):
     """计算收缩高斯函数的模的平方 <φ|φ>。
-    对应 read_mkl.f90 中的 norm_fac_of_contract_gau。
     exps  : 原始高斯指数数组
     coeffs: 收缩系数数组（未归一化原始高斯的系数）
     """
@@ -68,7 +55,6 @@ def _norm_fac_of_contract_gau(itype, exps, coeffs):
 
 def _un_normalize_contraction(l, exps, coeffs):
     """将 molden 文件中可能已归一化的收缩系数转换为 PySCF 所需的未归一化系数。
-    对应 read_mkl.f90 中的 un_normalized_all_pg 逻辑：
       1. 只有1个原始高斯时：只保留符号，返回 ±1
       2. 若 <φ|φ> ≈ 1，说明已是未归一化系数，直接返回
       3. 尝试将每个系数除以其对应原始高斯归一化因子，再检验
@@ -85,14 +71,12 @@ def _un_normalize_contraction(l, exps, coeffs):
     norm_fac0 = _norm_fac_of_contract_gau(l, exps, coeffs)
 
     if abs(1.0 - norm_fac0) > 1e-4:
-        # 尝试1：系数是以归一化原始高斯为基础的，除以各自的归一化因子
         prim_norms = numpy.array([_norm_fac_of_prim_gau(l, a) for a in exps])
         coeffs_try = coeffs / prim_norms
         norm_fac = _norm_fac_of_contract_gau(l, exps, coeffs_try)
         if abs(1.0 - norm_fac) <= 1e-4:
             return coeffs_try
-
-        # 尝试2：将原始系数整体除以 sqrt(norm_fac0)
+            
         coeffs_try2 = coeffs / numpy.sqrt(norm_fac0)
         norm_fac = _norm_fac_of_contract_gau(l, exps, coeffs_try2)
         if abs(1.0 - norm_fac) <= 1e-3:
